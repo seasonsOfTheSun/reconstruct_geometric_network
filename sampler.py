@@ -7,13 +7,6 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import itertools as it
 
-
-
-
-
-
-
-
 def init_positions(A):
     # Initialise positions baseed on eigenvectors
     D = np.diag(np.sum(A,axis=1)**(-0.5))
@@ -25,7 +18,7 @@ def init_positions(A):
 def joinup(arr):
     return np.array(list(it.chain(*arr)))
 
-def sort_nodes_by_component(A):
+def sort_nodes_by_component(A,positions):
     G = nx.from_numpy_array(A)
     components = list(nx.connected_components(G))
     components = [list(component) for component in components]
@@ -125,42 +118,42 @@ class Sampler:
 
 
 
+if __name__ == "__main__":
 
+    # Initialise a ground truth msodel and draw a ground truth network from it       
+    ground_truth = Network_Model(100)
+    lambda_true,c_true,r_true  = 0.1, 0.6, 0.4
+    ground_truth.set_params([lambda_true,c_true,r_true])
+    positions = ground_truth.sample_position()
+    A = ground_truth.sample_network(positions)
 
-# Initialise a ground truth msodel and draw a ground truth network from it       
-ground_truth = Network_Model(100)
-lambda_true,c_true,r_true  = 0.1, 0.6, 0.4
-ground_truth.set_params([lambda_true,c_true,r_true])
-positions = ground_truth.sample_position()
-A = ground_truth.sample_network(positions)
+    # Innitalise and estimate using spectra
+    A_true,true_positions,start_positions = sort_nodes_by_component(A,positions)
+    sampler = Sampler(A_true)
+    sampler.positions = start_positions
+    sampler.current.set_params([0.1,0.1,0.1])
 
-# Innitalise and estimate using spectra
-A_true,true_positions,start_positions = sort_nodes_by_component(A)
-sampler = Sampler(A_true)
-sampler.positions = start_positions
-sampler.current.set_params([0.1,0.1,0.1])
+    # run the sampler
+    n_steps = 500000
+    for i in tqdm.trange(n_steps):
+        inv_temp = 10*np.sqrt(i/n_steps)
 
-# run the sampler
-n_steps = 500000
-for i in tqdm.trange(n_steps):
-    inv_temp = 10*np.sqrt(i/n_steps)
-    
-    noise = 0.1/(1+(100*np.sqrt(i/n_steps)))
-    
-    sampler.sample_params(noise)
-    sampler.sample_positions(4.0*noise)
-    sampler.update_params(inv_temp)
-    sampler.update_positions(inv_temp)
-df = pd.DataFrame(sampler.nlogp_history)
+        noise = 0.1/(1+(100*np.sqrt(i/n_steps)))
 
-import uuid
-folder = "sampling/"+str(uuid.uuid4())
+        sampler.sample_params(noise)
+        sampler.sample_positions(4.0*noise)
+        sampler.update_params(inv_temp)
+        sampler.update_positions(inv_temp)
+    df = pd.DataFrame(sampler.nlogp_history)
 
-import os
-os.makedirs(folder, exist_ok=True)
-df.to_csv(folder+"/history.csv")
-pd.Series(ground_truth.params).to_csv(folder+"/true_params.csv")
-pd.Series(true_positions).to_csv(folder+"/true_positions.csv")
-pd.DataFrame(A_true).to_csv(folder+"/true_adjacency.csv")
+    import uuid
+    folder = "sampling/"+str(uuid.uuid4())
+
+    import os
+    os.makedirs(folder, exist_ok=True)
+    df.to_csv(folder+"/history.csv")
+    pd.Series(ground_truth.params).to_csv(folder+"/true_params.csv")
+    pd.Series(true_positions).to_csv(folder+"/true_positions.csv")
+    pd.DataFrame(A_true).to_csv(folder+"/true_adjacency.csv")
 
 
